@@ -14,7 +14,7 @@ struct diffTime_t{
 
 class DueClock {
   uint32_t _seconds;
-  diffTime_t _offset;
+  double _secondsOffset;
 public:
   void init();
   

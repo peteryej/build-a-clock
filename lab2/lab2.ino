@@ -5,85 +5,44 @@
 #include <PowerDueWiFi.h>
 
 
-#define WAITIME_MS 5000    //get NTP update every 5 seconds
+#define WAITIME_MS 10000    //get NTP update every 10 seconds
 #define WIFI_SSID "PowerDue"
 #define WIFI_PASS "powerdue"
 
 #define MICROSECONDS 1000000
 
 diffTime_t offset;   
-diffTime_t roundtripDelay;
+diffTime_t singleTripDelay;
 
 //compute offset between local time and server time
 void computeOffset(DueTime_t *t0, DueTime_t *t1, DueTime_t *t2, DueTime_t *t3) {
 
-  double time1, time2, time3, time0;
-  time0 = t0->sec + (double)(t0->sec)/MICROSECONDS;
-  time0 = t1->sec + (double)(t1->sec)/MICROSECONDS;
-  offset.sec = (diffSec1+diffSec2)/2;
+  double time1, time2, time3, time0, diffTime;
+  time0 = t0->sec + (double)(t0->usec)/MICROSECONDS;
+  time1 = t1->sec + (double)(t1->usec)/MICROSECONDS;
+  time2 = t2->sec + (double)(t2->usec)/MICROSECONDS;
+  time3 = t3->sec + (double)(t3->usec)/MICROSECONDS;
   
-  diffuSec1 = (double)t1->usec - (double)t0->usec;
-  diffuSec2 = (double)t2->usec - (double)t3->usec;
-  if(diffuSec1<0){
-    diffuSec1 = 1000000+ diffuSec1;
-  }
-  if(diffuSec2<0){
-    diffuSec1 = 1000000+ diffuSec1;
-  }
-  offset.usec = (diffuSec2-diffuSec1)/2;
-  //return offset;
-}
-
-
-//compute offset between local time and server time
-void computeOffset1(DueTime_t *t0, DueTime_t *t1, DueTime_t *t2, DueTime_t *t3) {
-  
-  double diffSec1, diffSec2, diffuSec1, diffuSec2;
-  diffSec1 = (double)t1->sec - (double)t0->sec;
-  diffSec2 = (double)t2->sec - (double)t3->sec;
-  offset.sec = (diffSec1+diffSec2)/2;
-  
-  diffuSec1 = (double)t1->usec - (double)t0->usec;
-  diffuSec2 = (double)t2->usec - (double)t3->usec;
-  if(diffuSec1<0){
-    diffuSec1 = 1000000+ diffuSec1;
-  }
-  if(diffuSec2<0){
-    diffuSec1 = 1000000+ diffuSec1;
-  }
-  offset.usec = (diffuSec2-diffuSec1)/2;
+  diffTime = ((time1-time0)+(time2-time3))/2.0;
+  offset.sec = (int32_t)diffTime;
+  offset.usec = (int32_t)((diffTime-offset.sec)*MICROSECONDS)%MICROSECONDS;
   //return offset;
 }
 
 //compute the roundtrip delay between the local machine and the server
 void computeDelay(DueTime_t *t0, DueTime_t *t1, DueTime_t *t2, DueTime_t *t3) {
-  double diffSec1, diffSec2, diffuSec1, diffuSec2;
-  diffSec1 = (double)t3->sec - (double)t0->sec;
-  diffuSec1 = (double)t3->usec - (double)t0->usec;
 
-  if(diffuSec1<0){
-    diffuSec1 = 1000000+ diffuSec1;
-    diffSec1 -= 1;
-  }
-
-  diffSec2 = (double)t2->sec - (double)t1->sec;
-  diffuSec2 = (double)t2->usec - (double)t1->usec; 
+  double time1, time2, time3, time0, diffTime;
+  time0 = t0->sec + (double)(t0->usec)/MICROSECONDS;
+  time1 = t1->sec + (double)(t1->usec)/MICROSECONDS;
+  time2 = t2->sec + (double)(t2->usec)/MICROSECONDS;
+  time3 = t3->sec + (double)(t3->usec)/MICROSECONDS;
   
-  if(diffuSec2<0){
-    diffuSec2 = 1000000+ diffuSec2;
-    diffSec2 -= 1;
-  }
-
-  
-  roundtripDelay.sec = diffSec1-diffSec2;
-  roundtripDelay.usec = diffuSec1-diffuSec2;
-
-  if(roundtripDelay.usec<0){
-    roundtripDelay.usec = 1000000+ roundtripDelay.usec;
-    roundtripDelay.sec -= 1;
-  }  
-  //return roundtripDelay;
+  diffTime = ((time3-time0)-(time2-time1))/2.0;
+  singleTripDelay.sec = (int32_t)diffTime;
+  singleTripDelay.usec = (int32_t)((diffTime-singleTripDelay.sec)*MICROSECONDS)%MICROSECONDS;
 }
+
 
 int ntp_build_socket(void){ 
   struct sockaddr_in addr; 
@@ -142,6 +101,7 @@ void ntp_receive_task(void *arg){
   DueTime_t t0, t1, t2, t3; 
   struct sockaddr addr; 
   socklen_t socklen; 
+  int counter =0;
   
   while(1){ 
     memset(&packet, 0, SNTP_MSG_LEN); 
@@ -163,20 +123,30 @@ void ntp_receive_task(void *arg){
     SerialUSB.print(" s ");
     SerialUSB.print(offset.usec);
     SerialUSB.println(" us");
+//    SerialUSB.println((long)&(offset.sec));
+//    SerialUSB.println((long)&(offset.usec));
 
     computeDelay(&t0, &t1, &t2, &t3); 
     SerialUSB.print("delay: ");
-    SerialUSB.print(roundtripDelay.sec);
+    SerialUSB.print(singleTripDelay.sec);
     SerialUSB.print(" s ");
-    SerialUSB.print(roundtripDelay.usec);
+    SerialUSB.print(singleTripDelay.usec);
     SerialUSB.println(" us");
     // What should be the criteria for adjusting our clock? 
+    if (counter <= 18){
+      Clock.addOffset(&offset);
+    }
     //Clock.addOffset(&offset);
     
     print_time("t0", &t0);
     print_time("t1", &t1);
     print_time("t2", &t2);
     print_time("t3", &t3);
+//    SerialUSB.println((long)&t0);
+//    SerialUSB.println((long)&t1);
+//    SerialUSB.println((long)&t2);
+//    SerialUSB.println((long)&t3);
+    counter ++;
   }
 }
 

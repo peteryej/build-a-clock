@@ -67,9 +67,9 @@ void DueClock::stop(){
 }
 
 void DueClock::addOffset(diffTime_t *offset){
-  _offset.sec += offset->sec;
-  _seconds += _offset.sec;
-  newRc = (uint32_t)(1000000- offset->usec)*2.625;
+  _secondsOffset += offset->sec;
+ 
+  newRc = (uint32_t)((1000000 - offset->usec)*2.625);
 
 }
 
@@ -81,7 +81,7 @@ void DueClock::getTime(DueTime_t *t){
 	
 	t->usec = (double)TC_ReadCV(TC0,1)/2.625;
   //t->sec = TC_ReadCV(TC0,0) + _offset.sec;
-  t->sec = _seconds;
+  t->sec = _seconds +_secondsOffset;
 }
 
 void DueClock::tick(){
