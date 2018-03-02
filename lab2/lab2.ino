@@ -133,7 +133,7 @@ void ntp_receive_task(void *arg){
     SerialUSB.print(singleTripDelay.usec);
     SerialUSB.println(" us");
     // What should be the criteria for adjusting our clock? 
-    if (counter <= 18){
+    if (counter <= 8){
       Clock.addOffset(&offset);
     }
     //Clock.addOffset(&offset);
